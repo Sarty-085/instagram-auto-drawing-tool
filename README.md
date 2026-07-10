@@ -1,86 +1,323 @@
-# Instagram Stories Auto-Drawing Bot
+# 🎨 Instagram Auto-Drawing Tool
 
-An open-source desktop utility that automatically color-maps, scales, overlays, and draws images onto the Instagram Stories drawing canvas on an Android phone using Android Debug Bridge (ADB).
-
----
-
-## 🌟 Key Features
-
-*   **Interactive Visual Overlay editor**: Overlay any transparent image directly on top of your phone screen, drag to position, and drag the bottom-right corner to scale to fit.
-*   **Active Layer Highlights**: Selecting a layer in the dashboard highlights it in the Live Preview while dimming other layers, letting you inspect exactly what is drawn on that layer.
-*   **Layer Manager & Reordering**: Easily scroll through color layers, toggle visibility, switch mode between solid fills (`FILL`) or outline tracing (`LINE`), and reorder drawing sequences so background passes run first.
-*   **Strict Mode Separation**:
-    *   `FILL` mode: Draws tightly spaced scanlines (`step_size = 6px`) to ensure solid fills with zero gaps.
-    *   `LINE` mode: Traces high-fidelity outer contours.
-*   **Safe Touch-Down Redirection**: Automatically rolls start coordinates of swipe gestures away from the left edge (`X >= 120`). This completely prevents the Instagram brush slider or Android system navigation from triggering during drawing.
-*   **Settle Pauses & Swipe Drags**: Uses horizontal drags to change brush sizes on the slider reliably, with post-background settle delays to clear Android gesture queues.
-*   **Dynamic Drawing Speeds**: Short details/outlines are drawn quickly at `120ms` per segment, while long fills or backgrounds draw slowly at `800ms` for maximum precision and screen registration.
-*   **Ultra-Smooth Curves**: Features a customizable curve approximation threshold (`CONTOUR_EPSILON = 0.0012`) to break curved outlines into short segments, making loops, circles, and curves draw smooth and round.
+> Automatically draw any image on Instagram's in-app drawing canvas using ADB — pixel-perfect, colour-mapped, and fully interactive.
 
 ---
 
-## 🚀 How to Run (Precompiled Executable)
+## ✨ What This Does
 
-If you compile the script into a standalone app (`draw_interactive.exe`), users can run it without installing Python!
+This tool lets you take any image (PNG, JPEG, WEBP…) and have it drawn automatically on your phone's Instagram story drawing canvas via Android Debug Bridge (ADB). It:
 
-1.  **Enable Android USB Debugging**:
-    *   On your Android phone, go to **Settings** > **About Phone**.
-    *   Tap **Build Number** 7 times to unlock Developer Options.
-    *   Go to **Developer Options** and enable **USB Debugging**.
-2.  **Connect Phone**:
-    *   Connect your phone to your PC via USB.
-    *   On your phone, allow the USB Debugging permission prompt.
-3.  **Run the App**:
-    *   Ensure `adb.exe`, `AdbWinApi.dll`, and `AdbWinUsbApi.dll` are in the same folder as `draw_interactive.exe`.
-    *   Double-click `draw_interactive.exe`.
-    *   Follow the screen prompts to position your drawing and map colors!
+- **Quantises** your image to Instagram's exact 22-colour palette
+- Lets you **place and resize** the drawing area over a live phone screenshot
+- Shows a **layer-by-layer mapping dashboard** where you can remap colours, toggle fill vs outline modes, reorder layers, and pick a background colour
+- Opens an **eraser editor** so you can clean up any unwanted pixels before anything is drawn
+- **Draws** each colour layer in the correct order (lightest fills first, dark outlines on top) using ADB swipe commands
 
 ---
 
-## 🛠️ How to Run from Source (Python)
+## 📋 Requirements
 
-If you prefer to run the project directly from Python:
+| Requirement | Details |
+|---|---|
+| **Python** | 3.8 or newer |
+| **Android device** | Any Android phone with **USB Debugging** enabled |
+| **ADB** | Android Platform Tools (see install below) |
+| **Instagram** | Installed, story creation open with **Draw tool active** |
+| **USB cable** | Phone connected to PC |
 
-### 1. Prerequisites
-Install the required packages in your Python environment:
-```powershell
-pip install opencv-python numpy
+### Python packages
+
+```bash
+pip install -r requirements.txt
 ```
 
-### 2. Run the Script
-Open your terminal inside the project directory and run:
-```powershell
-python draw_interactive.py
+Contents of `requirements.txt`:
+```
+opencv-python>=4.5.0
+numpy>=1.20.0
 ```
 
 ---
 
-## 📦 How to Package into a Standalone `.exe`
+## 🔧 Setup
 
-You can package this project into a single, portable Windows application using **PyInstaller**. This bundles Python, OpenCV, NumPy, and the ADB dependencies into a single double-clickable `.exe` file.
+### Step 1 — Install Android Platform Tools
 
-1.  **Install PyInstaller**:
-    ```powershell
-    python -m pip install pyinstaller
-    ```
-2.  **Compile the Executable**:
-    Run the following command in the directory containing `draw_interactive.py` and the `adb.exe` files:
-    ```powershell
-    python -m PyInstaller --onefile --add-binary "adb.exe;." --add-binary "AdbWinApi.dll;." --add-binary "AdbWinUsbApi.dll;." draw_interactive.py
-    ```
-3.  **Find the App**:
-    The compiled standalone executable will be created inside the **`dist`** folder. Copy `draw_interactive.exe` out and share it with anyone!
+Download **Android Platform Tools** from Google and extract them:
+
+- **Windows**: https://dl.google.com/android/repository/platform-tools-latest-windows.zip
+- **macOS**: https://dl.google.com/android/repository/platform-tools-latest-darwin.zip
+- **Linux**: https://dl.google.com/android/repository/platform-tools-latest-linux.zip
+
+Place `adb` (or `adb.exe` on Windows) in the same folder as the Python scripts **or** add it to your system `PATH`.
+
+### Step 2 — Enable USB Debugging on your phone
+
+1. Go to **Settings → About Phone**
+2. Tap **Build Number** 7 times to unlock Developer Options
+3. Go to **Settings → Developer Options**
+4. Enable **USB Debugging**
+5. Connect phone via USB and accept the "Allow USB Debugging" prompt on the phone
+
+### Step 3 — Clone this repo
+
+```bash
+git clone https://github.com/Sarty-085/instagram-auto-drawing-tool.git
+cd instagram-auto-drawing-tool
+pip install -r requirements.txt
+```
+
+### Step 4 — Calibrate your device *(first time only)*
+
+Calibration detects where Instagram's palette bar sits on your specific screen and maps the brush-size slider positions. You only need to do this once per device.
+
+```bash
+python draw_interactive.py --calibrate path/to/any_image.png
+```
+
+The auto-calibration will:
+1. Take a screenshot of your phone
+2. Detect the colour palette row at the bottom of Instagram's draw view
+3. Detect the brush-size slider on the left side
+4. Save a `config.json` for future runs
+
+> **Manual calibration**: If auto-calibration fails, run `python calibration.py` to go through a step-by-step guided process.
 
 ---
 
-## ⚙️ Calibration Settings
-At the top of `draw_interactive.py`, you can fine-tune several configurations for your specific device:
-*   `BRUSH_X`: The horizontal coordinate of the Instagram brush slider.
-*   `BRUSH_CONFIG`: A dictionary mapping brush size numbers (1 to 5) to their slider Y coordinates and actual drawn pixel widths. Run the `scratch/measure_brush_sizes.py` script on your phone to calibrate this!
-*   `FILL_STEP_SIZE`: The horizontal distance between scanlines in solid fills (defaults to `6px` for solid fills).
-*   `CONTOUR_EPSILON`: Epsilon factor for curve smoothing. Set to `0.0012` for ultra-smooth curves, or higher (e.g. `0.005`) for faster, simplified outlines.
+## 🚀 Usage
+
+Open Instagram on your phone, create a new story, tap the **pen/draw icon**, and make sure you are on **palette page 1**.
+
+Then run:
+
+```bash
+python draw_interactive.py path/to/your_image.png
+```
+
+### Full command options
+
+```
+python draw_interactive.py [IMAGE] [--calibrate] [--config CONFIG_PATH]
+
+Arguments:
+  IMAGE           Path to the image to draw (PNG, JPG, WEBP, etc.)
+  --calibrate     Force re-calibration even if config.json exists
+  --config PATH   Use a specific config file instead of the default
+```
+
+### Examples
+
+```bash
+# Draw a PNG image
+python draw_interactive.py samples/sleeping.png
+
+# Draw and re-calibrate first
+python draw_interactive.py samples/bear.png --calibrate
+
+# Draw using a custom config file
+python draw_interactive.py my_art.png --config my_phone_config.json
+```
+
+---
+
+## 🖥️ Interactive Workflow
+
+Once launched, the tool walks you through 4 interactive windows:
+
+---
+
+### Window 1 — Overlay Placement
+
+A window showing your phone screenshot with the image overlaid.
+
+| Control | Action |
+|---|---|
+| **Drag image body** | Move the drawing area |
+| **Drag red corner handle** | Resize (aspect-ratio locked) |
+| **ENTER / SPACE** | Confirm placement |
+| **ESC** | Cancel |
+
+Position the image exactly where you want it drawn on the phone screen.
+
+---
+
+### Window 2 — Mapping Dashboard
+
+A control panel where you customise how each colour layer is drawn.
+
+| Control | Action |
+|---|---|
+| **Click a layer row** | Select it (preview highlights that layer) |
+| **▲ / ▼ arrows** | Reorder layers |
+| **Click colour swatch** | Remap to a different Instagram palette colour |
+| **FILL / LINE toggle** | Switch between scanline fill and outline-only mode |
+| **SKIP** | Exclude this colour entirely |
+| **Background selector** | Set a solid background colour (or none) |
+| **ENTER / SPACE** | Confirm and proceed |
+| **ESC** | Cancel |
+
+> **Tip**: Layers are pre-sorted lightest → darkest. This means light fills (white, cream) are drawn first and dark outlines (black) are drawn last — matching how cartoon art is traditionally layered.
+
+---
+
+### Window 3 — Eraser Editor
+
+Before drawing starts you can clean up any unwanted pixels.
+
+| Control | Action |
+|---|---|
+| **Left-click / drag** | Erase pixels from the active layer |
+| **Right-click / drag** | Restore erased pixels |
+| **`[` / `]`** | Shrink / grow eraser brush |
+| **N / P** | Next / previous layer |
+| **ENTER / SPACE** | Confirm edits and continue |
+| **ESC** | Cancel — discards ALL edits and returns to dashboard |
+
+Active layer shows at full brightness; other layers are dimmed so you can see context.
+
+---
+
+### Window 4 — Countdown & Drawing
+
+Switch to your phone, make sure Instagram is open on the draw page, then wait for the countdown (default 3 seconds). The tool will:
+
+1. Select the correct palette page and colour
+2. Set the brush to its smallest size
+3. Draw each layer using horizontal scanline sweeps (fill mode) or contour tracing (outline mode)
+4. Automatically lift the pen between each shape to avoid unwanted connecting lines
+
+---
+
+## ⚙️ Configuration
+
+After calibration a `config.json` is created in the project folder. You can edit it manually:
+
+```jsonc
+{
+  "device": {
+    "screen_width": 1080,         // Phone screen width in px
+    "screen_height": 2408,        // Phone screen height in px
+    "brush_slider_x": 42,         // X coordinate of the brush-size slider
+    "palette_y": 2198,            // Y coordinate of the colour palette bar
+    "safe_x_boundary": 120,       // Left margin to avoid the slider zone
+    "palette_x_positions": [...]  // X positions of the 7 colour swatches
+  },
+  "brush_config": {
+    "1": { "y": 1511, "width": 27 },   // Thinnest brush
+    "2": { "y": 1350, "width": 42 },
+    "3": { "y": 1176, "width": 69 },
+    "4": { "y": 1022, "width": 96 },
+    "5": { "y": 869,  "width": 114 }   // Thickest brush
+  },
+  "drawing": {
+    "fill_step_size": 6,            // Pixels between scanlines (smaller = denser fill, slower)
+    "contour_epsilon": 0.0012,      // Outline simplification factor
+    "swipe_duration_long": 800,     // ms for long swipes (> 150 px)
+    "swipe_duration_mid": 300,      // ms for medium swipes (50–150 px)
+    "swipe_duration_short": 120,    // ms for short swipes (< 50 px)
+    "inter_swipe_delay": 0.15,      // Seconds to wait between swipes (pen-lift time)
+    "post_background_settle": 1.5,  // Seconds to wait after background fill
+    "pre_draw_countdown": 3         // Seconds countdown before drawing starts
+  },
+  "palette_page_swipe": {
+    "start_x": 850,
+    "end_x": 450,
+    "duration": 400,
+    "settle_delay": 1.5
+  }
+}
+```
+
+> `config.json` is **gitignored** — it contains coordinates specific to your phone.
+
+---
+
+## 🎨 Instagram Colour Palette
+
+The tool maps every pixel to the nearest of Instagram's 22 built-in drawing colours:
+
+| # | Name | Swatch |
+|---|---|---|
+| 0 | White | ⬜ |
+| 1–6 | Blue, Green, Yellow, Orange, Red, Pink | 🌈 |
+| 7–13 | Purple, Instagram Red, Rose, Light Pink, Pale Orange, Peach, Gold Brown | 🌈 |
+| 14 | Brown | 🟫 |
+| 15 | Black | ⬛ |
+| 16–21 | Dark Grey → Very Light Grey | 🩶 |
+
+These span 4 palette pages in the Instagram drawing UI. The tool automatically swipes between pages when selecting colours.
+
+---
+
+## 🗂️ Project Structure
+
+```
+instagram-auto-drawing-tool/
+│
+├── draw_interactive.py      # 🚀 Main entry point — run this
+│
+├── drawing_engine.py        # Core ADB drawing logic (swipe paths, scanlines, fill)
+├── gui.py                   # OpenCV interactive windows (overlay, dashboard, eraser)
+├── calibration.py           # Auto + manual device calibration
+├── calibrate_slider.py      # Brush-size slider calibration helper
+├── measure_brush_sizes.py   # Utility to measure actual brush widths on screen
+├── color_mapping.py         # Instagram palette definition + image quantisation
+├── adb_utils.py             # ADB connection wrapper (tap, swipe, screenshot)
+├── config.py                # Default config schema + load/save helpers
+│
+├── requirements.txt         # Python dependencies
+├── instagram_palette.json   # Machine-readable palette definition
+│
+└── samples/                 # Example images to try
+    ├── sleeping.png
+    ├── bear.png
+    ├── puppy.png
+    └── ...
+```
+
+---
+
+## 🛠️ Troubleshooting
+
+### `adb` not found
+Make sure `adb.exe` (Windows) or `adb` (Mac/Linux) is in the same folder as the scripts, or on your system `PATH`. Download it from [Android Platform Tools](https://developer.android.com/studio/releases/platform-tools).
+
+### No device found
+- Check USB cable is properly connected
+- Ensure **USB Debugging** is on in Developer Options
+- Accept the "Allow USB Debugging" prompt on the phone
+- Try `adb devices` in a terminal to verify the device is listed
+
+### Calibration fails / palette not detected
+- Open Instagram, create a story, tap the **Draw** tool, and make sure the palette bar at the bottom is visible
+- Make sure you're on **palette page 1** (scroll the palette to the left)
+- Run `python draw_interactive.py --calibrate` to re-run calibration
+
+### Drawing connects shapes with stray lines
+The `inter_swipe_delay` in `config.json` may be too low for your device. Increase it:
+```json
+"inter_swipe_delay": 0.20
+```
+
+### Fill paints over wrong areas
+- Use the **Eraser Editor** (Window 3) to remove unwanted pixels before drawing
+- Switch problem layers from `FILL` to `LINE` mode in the dashboard
+
+### Drawing is very slow
+Increase `fill_step_size` in `config.json` (e.g. `10` or `12`) to use fewer scanlines. The fill will be less dense but much faster.
 
 ---
 
 ## 📄 License
-This project is open-sourced under the MIT License. Feel free to use, modify, and distribute it!
+
+MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgements
+
+- [Android Platform Tools](https://developer.android.com/studio/releases/platform-tools) (ADB) by Google
+- [OpenCV](https://opencv.org/) for image processing and interactive GUI
+- [NumPy](https://numpy.org/) for fast mask operations

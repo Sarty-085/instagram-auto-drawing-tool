@@ -1,207 +1,131 @@
+"""measure_brush_sizes — Brush diameter calibration utility.
+
+Draws 5 test dots on the Instagram canvas (one per brush size) and
+guides the user through clicking the edges of each dot to measure
+the pixel diameter.  Results are saved to ``config.json`` via the
+shared :mod:`config` module.
+"""
+
+from __future__ import annotations
+
+import time
+from typing import List, Tuple
+
 import cv2
 import numpy as np
-import subprocess
-import time
-import os
 
-# --- HARDCODED BRUSH COORDINATES ---
-BRUSH_X = 42
-BRUSH_THIN_Y = 1511
-BRUSH_MED_Y = 1176
-BRUSH_THICK_Y = 869
+from adb_utils import ADBConnection
+from config import load_config, save_config
 
-# Calculate 5 equidistant Y coordinates on the slider
-slider_y_coords = [
-    1511,  # Size 1 (Thinnest)
-    1350,  # Size 2
-    1176,  # Size 3 (Medium)
-    1022,  # Size 4
-    869    # Size 5 (Thickest)
-]
 
-# ADB Command Utilities (Portable resolution)
-def find_adb():
-    """Dynamically resolves the path to adb.exe to make the app portable."""
-    import sys
-    if getattr(sys, 'frozen', False):
-        base_dir = os.path.dirname(sys.executable)
-    else:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        
-    local_adb = os.path.join(base_dir, "adb.exe")
-    if os.path.exists(local_adb):
-        return local_adb
-        
-    if os.path.exists("adb.exe"):
-        return os.path.abspath("adb.exe")
-        
-    sarth_path = r"c:\Users\sarth\Downloads\platform-tools-latest-windows\platform-tools\adb.exe"
-    if os.path.exists(sarth_path):
-        return sarth_path
-        
-    from shutil import which
-    system_adb = which("adb")
-    if system_adb:
-        return system_adb
-        
-    return "adb.exe"
-
-ADB_PATH = find_adb()
-print(f"Using ADB from path: {ADB_PATH}")
-
-def tap_screen(x, y):
-    cmd = f'"{ADB_PATH}" shell input tap {x} {y}'
-    subprocess.run(cmd, shell=True)
-    time.sleep(0.5)
-
-def swipe_screen(x1, y1, x2, y2, duration=50):
-    cmd = f'"{ADB_PATH}" shell input swipe {x1} {y1} {x2} {y2} {duration}'
-    subprocess.run(cmd, shell=True)
-
-def select_brush_size_raw(y_coord):
-    """Drags the brush slider to a specific Y coordinate."""
-    swipe_screen(BRUSH_X, y_coord, BRUSH_X + 15, y_coord, duration=200)
-    time.sleep(0.5)
-
-def get_phone_screenshot():
-    print("Capturing phone screen via ADB...")
-    cmd = [ADB_PATH, "exec-out", "screencap", "-p"]
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE)
-    img_bytes = proc.stdout
-    if not img_bytes or len(img_bytes) < 100:
-        print("Error: Could not capture phone screen.")
-        return None
-    nparr = np.frombuffer(img_bytes, np.uint8)
-    return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-# Click tracking globals
-click_points = []
-
-def mouse_callback(event, x, y, flags, param):
-    global click_points
-    if event == cv2.EVENT_LBUTTONDOWN:
-        # Scale back to phone space
-        scale = param['scale']
-        phone_x = int(x / scale)
-        phone_y = int(y / scale)
-        click_points.append((phone_x, phone_y))
-        print(f"Clicked pixel: X={phone_x}, Y={phone_y}")
-
-def main():
-    global click_points
-    
-    print("\n--- INSTRUCTIONS ---")
-    print("1. Open Instagram Draw mode on your phone.")
-    print("2. Choose a clean canvas (e.g. solid black or dark background).")
-    print("3. Select WHITE color from the palette for maximum contrast.")
-    print("4. Press ENTER when ready to draw the 5 calibration dots...")
-    input()
-    
-    # Draw 5 dots on the phone screen
-    # Placed at different Y values: 400, 750, 1100, 1450, 1800
-    draw_y_coords = [400, 750, 1100, 1450, 1800]
-    
-    print("Drawing calibration dots on phone...")
-    for idx, slider_y in enumerate(slider_y_coords):
-        size_num = idx + 1
-        draw_y = draw_y_coords[idx]
-        print(f"   Dot {size_num}/5: Slider Y = {slider_y}, Tapping at Y = {draw_y}...")
-        
-        # Select brush size
-        select_brush_size_raw(slider_y)
-        
-        # Tap the screen to draw a circular dot
-        tap_screen(500, draw_y)
-        time.sleep(0.5)
-        
-    print("Test dots drawn. Taking screenshot...")
-    time.sleep(1.0)
-    screenshot = get_phone_screenshot()
-    if screenshot is None:
+def main() -> None:
+    """Run the brush-size measurement workflow."""
+    # Connect
+    try:
+        adb = ADBConnection()
+    except (FileNotFoundError, ConnectionError) as exc:
+        print(f"❌ {exc}")
         return
-        
+
+    config = load_config()
+    brush_cfg = config["brush_config"]
+    brush_x: int = int(config["device"]["brush_slider_x"])
+
+    slider_y_coords = [int(brush_cfg[str(i)]["y"]) for i in range(1, 6)]
+    draw_y_coords = [400, 750, 1100, 1450, 1800]
+
+    print("\n--- BRUSH SIZE MEASUREMENT ---")
+    print("1. Open Instagram Draw mode on your phone.")
+    print("2. Choose a clean canvas (solid dark background).")
+    print("3. Select WHITE colour from the palette.")
+    print("4. Press ENTER when ready...")
+    input()
+
+    # Draw 5 calibration dots
+    print("Drawing calibration dots...")
+    for idx, slider_y in enumerate(slider_y_coords):
+        print(f"  Dot {idx + 1}/5: Slider Y={slider_y}, Draw Y={draw_y_coords[idx]}")
+        adb.swipe(brush_x, slider_y, brush_x + 15, slider_y, 200)
+        time.sleep(0.5)
+        adb.tap(500, draw_y_coords[idx])
+        time.sleep(0.5)
+
+    print("Taking screenshot...")
+    time.sleep(1.0)
+    screenshot = adb.screenshot()
     h_screen, w_screen = screenshot.shape[:2]
-    
-    # Scale display to fit laptop screen
-    scale = 1.0
-    max_h = 800
-    if h_screen > max_h:
-        scale = max_h / h_screen
-        
-    disp_w = int(w_screen * scale)
-    disp_h = int(h_screen * scale)
+
+    scale = min(1.0, 800 / h_screen)
+    disp_w, disp_h = int(w_screen * scale), int(h_screen * scale)
     display_img = cv2.resize(screenshot, (disp_w, disp_h))
-    
-    window_name = "Brush Diameter Calibration Tool"
-    cv2.namedWindow(window_name)
-    cv2.setMouseCallback(window_name, mouse_callback, param={'scale': scale})
-    
-    measured_widths = []
-    
-    print("\n--- MEASUREMENT STEPS ---")
-    print("We will measure the 5 dots from top to bottom (Size 1 to Size 5).")
-    
+
+    click_points: List[Tuple[int, int]] = []
+
+    def _on_mouse(event: int, x: int, y: int, flags: int, param: object) -> None:
+        if event == cv2.EVENT_LBUTTONDOWN:
+            px, py = int(x / scale), int(y / scale)
+            click_points.append((px, py))
+            print(f"  Clicked: ({px}, {py})")
+
+    window = "Brush Diameter Calibration"
+    cv2.namedWindow(window)
+    cv2.setMouseCallback(window, _on_mouse)
+
+    measured: List[int] = []
+
+    print("\n--- MEASUREMENT ---")
+    print("Click LEFT edge then RIGHT edge of each dot (top to bottom).\n")
+
     for idx, draw_y in enumerate(draw_y_coords):
         size_num = idx + 1
-        print(f"\n[Size {size_num}] Slider Y: {slider_y_coords[idx]}")
-        print("-> Click on the LEFTmost edge of the dot in the window.")
-        
-        click_points = []
-        # Wait for left click
+        print(f"[Size {size_num}] Click LEFT edge of dot...")
+        click_points.clear()
+
         while len(click_points) < 1:
             canvas = display_img.copy()
-            # Draw helper horizontal line to show where the dot Y is
-            disp_y = int(draw_y * scale)
-            cv2.line(canvas, (0, disp_y), (disp_w, disp_y), (0, 0, 255), 1)
-            cv2.imshow(window_name, canvas)
-            key = cv2.waitKey(30) & 0xFF
-            if key == 27:
+            dy = int(draw_y * scale)
+            cv2.line(canvas, (0, dy), (disp_w, dy), (0, 0, 255), 1)
+            cv2.imshow(window, canvas)
+            if cv2.waitKey(30) & 0xFF == 27:
                 cv2.destroyAllWindows()
                 return
-                
+
         pt_left = click_points[0]
-        # Draw indicator for left click
-        cv2.drawMarker(display_img, (int(pt_left[0] * scale), int(pt_left[1] * scale)), (0, 255, 0), cv2.MARKER_CROSS, 8, 1)
-        
-        print("-> Click on the RIGHTmost edge of the same dot.")
-        # Wait for right click
+        cv2.drawMarker(display_img, (int(pt_left[0] * scale), int(pt_left[1] * scale)),
+                       (0, 255, 0), cv2.MARKER_CROSS, 8, 1)
+
+        print(f"[Size {size_num}] Click RIGHT edge of same dot...")
         while len(click_points) < 2:
-            canvas = display_img.copy()
-            cv2.imshow(window_name, canvas)
-            key = cv2.waitKey(30) & 0xFF
-            if key == 27:
+            cv2.imshow(window, display_img.copy())
+            if cv2.waitKey(30) & 0xFF == 27:
                 cv2.destroyAllWindows()
                 return
-                
+
         pt_right = click_points[1]
-        cv2.drawMarker(display_img, (int(pt_right[0] * scale), int(pt_right[1] * scale)), (0, 255, 0), cv2.MARKER_CROSS, 8, 1)
-        
-        # Calculate width in pixels (diameter of the circle)
-        width_pixels = abs(pt_right[0] - pt_left[0])
-        measured_widths.append(width_pixels)
-        print(f"Measured diameter for Size {size_num}: {width_pixels} pixels")
-        
-        # Draw bounding circle around it for verification
+        width = abs(pt_right[0] - pt_left[0])
+        measured.append(width)
+        print(f"  → Size {size_num} diameter: {width}px")
+
+        # Visual feedback
         cx = int((pt_left[0] + pt_right[0]) / 2 * scale)
         cy = int(draw_y * scale)
-        r = int(width_pixels / 2 * scale)
+        r = int(width / 2 * scale)
         cv2.circle(display_img, (cx, cy), r, (255, 255, 0), 1)
-        
+
     cv2.destroyAllWindows()
-    
-    print("\n==========================================")
-    print("CALIBRATION COMPLETED!")
-    print("==========================================")
-    print("Copy and paste the following configuration dictionary into draw_interactive.py:")
-    print("\n# --- CALIBRATED BRUSH CONFIGURATION ---")
-    print("BRUSH_CONFIG = {")
+
+    # Update config
     for i in range(5):
-        size_num = i + 1
-        y_val = slider_y_coords[i]
-        width_val = measured_widths[i]
-        print(f"    {size_num}: {{\"y\": {y_val}, \"width\": {width_val}}},  # Size {size_num}")
-    print("}")
-    print("==========================================\n")
+        config["brush_config"][str(i + 1)]["width"] = measured[i]
+
+    save_config(config)
+
+    print("\n" + "=" * 50)
+    print("✅ CALIBRATION COMPLETE — saved to config.json")
+    print("=" * 50)
+    for i in range(5):
+        print(f"  Size {i + 1}: Y={slider_y_coords[i]}, width={measured[i]}px")
+
 
 if __name__ == "__main__":
     main()

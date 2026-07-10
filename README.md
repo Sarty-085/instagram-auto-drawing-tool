@@ -308,6 +308,13 @@ The `inter_swipe_delay` in `config.json` may be too low for your device. Increas
 ### Drawing is very slow
 Increase `fill_step_size` in `config.json` (e.g. `10` or `12`) to use fewer scanlines. The fill will be less dense but much faster.
 
+
+---
+
+## 📈 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Sarty-085/instagram-auto-drawing-tool&type=Date)](https://star-history.com/#Sarty-085/instagram-auto-drawing-tool&Date)
+
 ---
 
 ## 📄 License
@@ -321,3 +328,4 @@ MIT — see [LICENSE](LICENSE) for details.
 - [Android Platform Tools](https://developer.android.com/studio/releases/platform-tools) (ADB) by Google
 - [OpenCV](https://opencv.org/) for image processing and interactive GUI
 - [NumPy](https://numpy.org/) for fast mask operations
+

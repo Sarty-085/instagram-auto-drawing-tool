@@ -315,11 +315,17 @@ Increase `fill_step_size` in `config.json` (e.g. `10` or `12`) to use fewer scan
 
 ---
 
-## 📈 Repository Stats
+## 📈 Repository Stats & Star History
 
 <p align="center">
   <a href="https://github.com/Sarty-085/instagram-auto-drawing-tool">
-    <img src="https://github-readme-stats.vercel.app/api/pin/?username=Sarty-085&repo=instagram-auto-drawing-tool&theme=dark" alt="Instagram Auto-Drawing Tool Stats" />
+    <img src="https://github-readme-stats.vercel.app/api/pin?username=Sarty-085&repo=instagram-auto-drawing-tool&theme=dark" alt="Instagram Auto-Drawing Tool Stats" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Sarty-085/instagram-auto-drawing-tool/stargazers">
+    <img src="https://stars.caarlos0.dev/svg?user=Sarty-085&repo=instagram-auto-drawing-tool" alt="Stars History Graph" />
   </a>
 </p>
 

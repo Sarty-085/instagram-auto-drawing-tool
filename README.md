@@ -1,5 +1,9 @@
 # 🎨 Instagram Auto-Drawing Tool
 
+[![GitHub Repo stars](https://img.shields.io/github/stars/Sarty-085/instagram-auto-drawing-tool?style=flat-square&color=gold)](https://github.com/Sarty-085/instagram-auto-drawing-tool/stargazers)
+[![GitHub Repo forks](https://img.shields.io/github/forks/Sarty-085/instagram-auto-drawing-tool?style=flat-square&color=blue)](https://github.com/Sarty-085/instagram-auto-drawing-tool/network/members)
+[![GitHub license](https://img.shields.io/github/license/Sarty-085/instagram-auto-drawing-tool?style=flat-square&color=green)](https://github.com/Sarty-085/instagram-auto-drawing-tool/blob/main/LICENSE)
+
 > Automatically draw any image on Instagram's in-app drawing canvas using ADB — pixel-perfect, colour-mapped, and fully interactive.
 
 ---
@@ -311,9 +315,13 @@ Increase `fill_step_size` in `config.json` (e.g. `10` or `12`) to use fewer scan
 
 ---
 
-## 📈 Star History
+## 📈 Repository Stats
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Sarty-085/instagram-auto-drawing-tool&type=Date)](https://star-history.com/#Sarty-085/instagram-auto-drawing-tool&Date)
+<p align="center">
+  <a href="https://github.com/Sarty-085/instagram-auto-drawing-tool">
+    <img src="https://github-readme-stats.vercel.app/api/pin/?username=Sarty-085&repo=instagram-auto-drawing-tool&theme=dark" alt="Instagram Auto-Drawing Tool Stats" />
+  </a>
+</p>
 
 ---
 

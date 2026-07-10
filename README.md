@@ -317,17 +317,13 @@ Increase `fill_step_size` in `config.json` (e.g. `10` or `12`) to use fewer scan
 
 ## 📈 Repository Stats & Star History
 
-<p align="center">
-  <a href="https://github.com/Sarty-085/instagram-auto-drawing-tool">
-    <img src="https://github-readme-stats.vercel.app/api/pin?username=Sarty-085&repo=instagram-auto-drawing-tool&theme=dark" alt="Instagram Auto-Drawing Tool Stats" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/Sarty-085/instagram-auto-drawing-tool/stargazers">
-    <img src="https://stars.caarlos0.dev/svg?user=Sarty-085&repo=instagram-auto-drawing-tool" alt="Stars History Graph" />
-  </a>
-</p>
+<a href="https://www.star-history.com/?repos=Sarty-085%2Finstagram-auto-drawing-tool.git&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Sarty-085/instagram-auto-drawing-tool.git&type=date&theme=dark&legend=top-left&sealed_token=rZkPbJYedey8PQjPGXI0pq5llqJdWNLCoo_6Wgv1tHa-n_J-nOAs_wjGIRYL6wxCqQ9avRgvsUDO8j5P58CnWaYouHn_8m_Goy7R3JL7Zubze53Jj2LHoSd_Vtf4NCkCmJk2JICi_-10gttb_jknqxDUSQtFRGYerQAlf0OBVO1zpmGh_vrJ4AgW9f1o" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Sarty-085/instagram-auto-drawing-tool.git&type=date&legend=top-left&sealed_token=rZkPbJYedey8PQjPGXI0pq5llqJdWNLCoo_6Wgv1tHa-n_J-nOAs_wjGIRYL6wxCqQ9avRgvsUDO8j5P58CnWaYouHn_8m_Goy7R3JL7Zubze53Jj2LHoSd_Vtf4NCkCmJk2JICi_-10gttb_jknqxDUSQtFRGYerQAlf0OBVO1zpmGh_vrJ4AgW9f1o" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Sarty-085/instagram-auto-drawing-tool.git&type=date&legend=top-left&sealed_token=rZkPbJYedey8PQjPGXI0pq5llqJdWNLCoo_6Wgv1tHa-n_J-nOAs_wjGIRYL6wxCqQ9avRgvsUDO8j5P58CnWaYouHn_8m_Goy7R3JL7Zubze53Jj2LHoSd_Vtf4NCkCmJk2JICi_-10gttb_jknqxDUSQtFRGYerQAlf0OBVO1zpmGh_vrJ4AgW9f1o" />
+ </picture>
+</a>
 
 ---
 

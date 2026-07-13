@@ -42,6 +42,7 @@ DEFAULT_CONFIG: dict = {
         "duration": 400,
         "settle_delay": 1.5,
     },
+    "spectrum": {},
 }
 
 CONFIG_FILE: str = "config.json"

@@ -25,7 +25,7 @@ import numpy as np
 
 from adb_utils import ADBConnection
 from calibration import DeviceCalibration
-from color_mapping import COLORS_PALETTE, prepare_source_image, quantize_image
+from color_mapping import COLORS_PALETTE, prepare_source_image, quantize_image, extend_palette_from_config
 from config import load_config, get_config_path
 from drawing_engine import execute_drawing
 from gui import overlay_image_bgra, run_overlay_editor, run_mapping_dashboard, run_eraser_editor
@@ -105,11 +105,14 @@ def main() -> None:
     config = load_config(config_path)
 
     if recalibrate or not os.path.exists(config_path):
-        print("\n🔧 Running device calibration...")
+        print("\n[CALIBRATION] Running device calibration...")
         calibrator = DeviceCalibration(adb)
         config = calibrator.run_calibration()
     else:
-        print(f"✓ Config loaded from {config_path}")
+        print(f"Config loaded from {config_path}")
+
+    # Extend palette with custom spectrum colors if calibrated
+    extend_palette_from_config(config)
 
     # ------------------------------------------------------------------
     # 3. Load and prepare source image
@@ -123,7 +126,7 @@ def main() -> None:
         print("Error: Could not load or prepare image.")
         return
 
-    print(f"✓ Source image loaded: {image_path}")
+    print(f"Source image loaded: {image_path}")
 
     # ------------------------------------------------------------------
     # 4. Capture phone screenshot

@@ -195,3 +195,27 @@ def quantize_image(img: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     closest_indices = closest.reshape(h, w)
 
     return quantized_bgr, closest_indices
+
+
+def extend_palette_from_config(config: dict) -> None:
+    """Dynamically append custom spectrum colours to global COLORS_PALETTE if calibrated."""
+    spectrum_cfg = config.get("spectrum")
+    if not spectrum_cfg or "colors" not in spectrum_cfg:
+        return
+
+    # Check if already extended (to avoid duplicate appends on repeated calls)
+    if len(COLORS_PALETTE) > 22:
+        # Reset back to base 22 colors first
+        del COLORS_PALETTE[22:]
+
+    colors = spectrum_cfg["colors"]
+    start_x = spectrum_cfg["start_x"]
+    
+    for idx, bgr in enumerate(colors):
+        x_coord = start_x + idx
+        # Format: (BGR_tuple, page_number, x_coordinate, color_name)
+        COLORS_PALETTE.append(
+            (tuple(bgr), -1, x_coord, f"custom_{idx}")
+        )
+    print(f"Dynamic palette extended with {len(colors)} custom spectrum colours.")
+

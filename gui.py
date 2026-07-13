@@ -625,7 +625,7 @@ def _draw_dashboard_canvas(
     cv2.putText(canvas, "TOGGLE SKIP / INCLUDE", (515, 602), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
 
     # Palette grid
-    for idx, item in enumerate(COLORS_PALETTE):
+    for idx, item in enumerate(COLORS_PALETTE[:22]):
         col = idx % 4
         row = idx // 4
         cx = 745 + col * 45 + 22
@@ -691,7 +691,7 @@ def run_mapping_dashboard(
     state = {
         "selected": 0,         # int index or "bg"
         "present": list(present_indices),
-        "mapped": list(range(22)),
+        "mapped": list(range(len(COLORS_PALETTE))),
         "modes": dict(layer_modes),
         "scroll": 0,
         "bg_idx": -1,
@@ -754,7 +754,7 @@ def run_mapping_dashboard(
                         return
 
         # Palette grid click
-        for idx, item in enumerate(COLORS_PALETTE):
+        for idx, item in enumerate(COLORS_PALETTE[:22]):
             col_i = idx % 4
             row_i = idx // 4
             cx = 745 + col_i * 45 + 22

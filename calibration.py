@@ -16,6 +16,8 @@ live screenshot rather than hard-coded pixel values.
 from __future__ import annotations
 
 import copy
+import subprocess
+import time
 from typing import List, Tuple
 
 import cv2
@@ -120,7 +122,105 @@ class DeviceCalibration:
         print(f"  Palette Y         : {palette_y}")
         print(f"  Colour X positions: {color_positions}")
 
+        print("\n[AUTO-CALIBRATE] Calibrating custom color spectrum picker...")
+        print("  Make sure Instagram Draw is open on Page 1...")
+        spectrum_info = self.calibrate_spectrum(config)
+        if spectrum_info:
+            config.update(spectrum_info)
+            print("  Custom color spectrum calibrated successfully!")
+        else:
+            print("  [WARNING] Custom color spectrum calibration failed or skipped.")
+
         return config
+
+    def calibrate_spectrum(self, config: dict) -> dict:
+        """Auto-detect the horizontal color spectrum picker by sending a long-press.
+
+        Requires Instagram Draw to be open on Page 1.
+        """
+        device_cfg = config.get("device", {})
+        palette_y = device_cfg.get("palette_y")
+        palette_x_positions = device_cfg.get("palette_x_positions")
+
+        if not palette_y or not palette_x_positions:
+            return {}
+
+        swatch_x = palette_x_positions[0] # White swatch
+
+        # Run non-blocking adb touch-and-hold (long-press) in background
+        adb_cmd = [
+            self.adb.adb_path,
+            "-s", self.adb.device_serial,
+            "shell", "input", "swipe",
+            str(swatch_x), str(palette_y),
+            str(swatch_x), str(palette_y),
+            "5000"
+        ]
+        try:
+            proc = subprocess.Popen(adb_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except Exception as e:
+            print(f"  [SPECTRUM] Error starting long-press: {e}")
+            return {}
+
+        # Wait for spectrum to appear
+        time.sleep(1.5)
+
+        # Capture screenshot
+        screenshot = self.adb.screenshot()
+
+        # Wait for swipe to finish
+        proc.wait()
+
+        # Scan for rainbow spectrum row
+        h, w, c = screenshot.shape
+        hsv = cv2.cvtColor(screenshot, cv2.COLOR_BGR2HSV)
+        sats = hsv[:, :, 1]
+        vals = hsv[:, :, 2]
+        hues = hsv[:, :, 0]
+
+        best_row = -1
+        max_score = 0
+
+        # Scan rows above palette_y
+        scan_start = max(0, palette_y - 120)
+        scan_end = max(0, palette_y - 10)
+
+        for row in range(scan_start, scan_end):
+            mask = (sats[row] > 80) & (vals[row] > 100)
+            colorful_count = np.sum(mask)
+
+            if colorful_count > w * 0.3:
+                valid_hues = hues[row, mask]
+                hue_std = np.std(valid_hues)
+                unique_bins = len(np.unique(valid_hues // 10))
+
+                if hue_std > 15 and unique_bins >= 8:
+                    score = colorful_count * hue_std
+                    if score > max_score:
+                        max_score = score
+                        best_row = row
+
+        if best_row != -1:
+            mask_best = (sats[best_row] > 80) & (vals[best_row] > 100)
+            colorful_indices = np.where(mask_best)[0]
+            start_x = int(colorful_indices[0])
+            end_x = int(colorful_indices[-1])
+
+            # Extract BGR values along the row
+            colors = []
+            for x in range(start_x, end_x + 1):
+                colors.append(screenshot[best_row, x].tolist())
+
+            return {
+                "spectrum": {
+                    "y": best_row,
+                    "start_x": start_x,
+                    "end_x": end_x,
+                    "colors": colors
+                }
+            }
+
+        return {}
 
     def _detect_palette_y(self, screenshot: np.ndarray) -> int:
         """Detect the vertical position of the colour-palette bar.
@@ -427,6 +527,6 @@ class DeviceCalibration:
 
         save_config(config)
 
-        print("\n[CALIBRATION] Calibration complete! ✓")
+        print("\n[CALIBRATION] Calibration complete!")
         print("=" * 60)
         return config

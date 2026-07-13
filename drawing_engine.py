@@ -288,7 +288,7 @@ def select_color(
     config : dict
         Full application config.
     """
-    _bgr, target_page, _color_x, color_name = COLORS_PALETTE[palette_idx]
+    _bgr, target_page, color_x, color_name = COLORS_PALETTE[palette_idx]
 
     swipe_cfg = config["palette_page_swipe"]
     palette_y: int = int(config["device"]["palette_y"])
@@ -297,7 +297,31 @@ def select_color(
     duration: int = int(swipe_cfg["duration"])
     settle: float = float(swipe_cfg["settle_delay"])
 
-    # Swipe to the correct page.
+    # If it is a custom spectrum colour
+    if target_page == -1:
+        # 1. Swipe back to Page 1 (spectrum picker starts there)
+        while current_page[0] != 1:
+            if current_page[0] < 1:
+                adb.swipe(start_x, palette_y, end_x, palette_y, duration)
+                current_page[0] += 1
+            else:
+                adb.swipe(end_x, palette_y, start_x, palette_y, duration)
+                current_page[0] -= 1
+            time.sleep(settle)
+
+        # 2. Long-press the first swatch on Page 1 and drag to the target X on the spectrum
+        x_positions = config["device"].get("palette_x_positions", [432, 515, 597, 680, 763, 845, 928])
+        swatch_x = int(x_positions[0])
+        spectrum_y = int(config["spectrum"]["y"])
+        target_x = int(color_x)
+
+        # Slow swipe/drag gesture (1.5 seconds)
+        adb.swipe(swatch_x, palette_y, target_x, spectrum_y, 1500)
+        # Settle to register the touch up
+        time.sleep(0.5)
+        return
+
+    # Swipe to the correct page for standard colours.
     while current_page[0] != target_page:
         if current_page[0] < target_page:
             # Swipe left → next page (start_x > end_x).

@@ -315,8 +315,8 @@ def select_color(
         spectrum_y = int(config["spectrum"]["y"])
         target_x = int(color_x)
 
-        # Slow swipe/drag gesture (1.5 seconds)
-        adb.swipe(swatch_x, palette_y, target_x, spectrum_y, 1500)
+        # Use drag_and_drop gesture (touch down, hold, drag, release)
+        adb.drag_and_drop(swatch_x, palette_y, target_x, spectrum_y, 1500)
         # Settle to register the touch up
         time.sleep(0.5)
         return

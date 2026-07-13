@@ -253,6 +253,47 @@ class ADBConnection:
                 f"failed (rc={result.returncode}): {result.stderr.strip()}"
             )
 
+    def drag_and_drop(
+        self,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        duration: int = 1500,
+    ) -> None:
+        """Send a drag-and-drop gesture from (x1, y1) to (x2, y2).
+
+        This starts with a touch down and hold (long press) at (x1, y1),
+        moves to (x2, y2), and touches up.
+
+        Parameters
+        ----------
+        x1, y1 : int
+            Start coordinates (pixels).
+        x2, y2 : int
+            End coordinates (pixels).
+        duration : int, optional
+            Duration of the drag gesture in milliseconds (default ``1500``).
+
+        Raises
+        ------
+        RuntimeError
+            If the ``adb shell input draganddrop`` command fails.
+        """
+        result = subprocess.run(
+            [
+                self.adb_path, "shell", "input", "draganddrop",
+                str(x1), str(y1), str(x2), str(y2), str(duration),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"'adb shell input draganddrop {x1} {y1} {x2} {y2} {duration}' "
+                f"failed (rc={result.returncode}): {result.stderr.strip()}"
+            )
+
     def get_screen_size(self) -> Tuple[int, int]:
         """Query the physical display size of the connected device.
 

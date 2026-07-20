@@ -619,14 +619,10 @@ def _draw_dashboard_canvas(
         cv2.rectangle(canvas, (485, 535), (725, 560), (120, 120, 120), 1)
         cv2.putText(canvas, "v Scroll Down", (560, 552), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
 
-    # Action buttons: Toggle Skip (left) & Open Eraser (right)
-    cv2.rectangle(canvas, (485, 575), (600, 610), (40, 40, 180), -1)
-    cv2.rectangle(canvas, (485, 575), (600, 610), (255, 255, 255), 1)
-    cv2.putText(canvas, "TOGGLE SKIP", (495, 597), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA)
-
-    cv2.rectangle(canvas, (610, 575), (725, 610), (140, 40, 160), -1)
-    cv2.rectangle(canvas, (610, 575), (725, 610), (255, 255, 255), 1)
-    cv2.putText(canvas, "ERASER (E)", (625, 597), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (255, 255, 255), 1, cv2.LINE_AA)
+    # Toggle Skip button
+    cv2.rectangle(canvas, (485, 580), (725, 615), (40, 40, 180), -1)
+    cv2.rectangle(canvas, (485, 580), (725, 615), (255, 255, 255), 1)
+    cv2.putText(canvas, "TOGGLE SKIP / INCLUDE", (515, 602), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
 
     # Palette grid
     for idx, item in enumerate(COLORS_PALETTE[:22]):
@@ -651,8 +647,8 @@ def _draw_dashboard_canvas(
             cv2.circle(canvas, (cx, cy), 20, (0, 255, 0), 2)
 
     # Footer
-    cv2.putText(canvas, "ENTER: Continue to Eraser/Draw | E: Eraser Tool | ESC: Cancel", (20, 595),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(canvas, "ENTER: Start drawing on phone | ESC: Cancel drawing", (20, 595),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
     cv2.putText(canvas, "Click rows to edit. Reorder so background fills draw first.", (20, 615),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.4, (160, 160, 160), 1, cv2.LINE_AA)
 
@@ -773,8 +769,8 @@ def run_mapping_dashboard(
                     print(f"Mapped layer {sel + 1} to '{item[3]}'")
                 return
 
-        # Action buttons
-        if 485 <= mx <= 600 and 575 <= my <= 610:  # Toggle Skip
+        # Toggle Skip button
+        if 480 <= mx <= 720 and 580 <= my <= 615:
             sel = state["selected"]
             if sel == "bg":
                 state["bg_idx"] = 0 if state["bg_idx"] == -1 else -1
@@ -783,28 +779,16 @@ def run_mapping_dashboard(
                 orig = state["present"][sel]
                 state["mapped"][orig] = orig if state["mapped"][orig] == -1 else -1
                 print(f"Toggled skip for layer {sel + 1}")
-        elif 610 <= mx <= 725 and 575 <= my <= 610:  # Eraser Button
-            state["open_eraser"] = True
 
-    window = "Color Mapping Panel (ENTER to Confirm, E for Eraser, ESC to Cancel)"
+    window = "Color Mapping Panel (ENTER to Confirm, ESC to Cancel)"
     cv2.namedWindow(window)
     cv2.setMouseCallback(window, _on_mouse)
 
     print("\n--- MAPPING DASHBOARD ---")
     print("  Click layers to select | Click palette to remap colours")
-    print("  ENTER/SPACE to Continue | E to Open Eraser | ESC to Cancel")
+    print("  ENTER/SPACE to Start Drawing | ESC to Cancel")
 
     while True:
-        if state.get("open_eraser"):
-            cv2.destroyAllWindows()
-            return {
-                "present_color_indices": state["present"],
-                "mapped_color_indices": state["mapped"],
-                "layer_modes": state["modes"],
-                "bg_color_idx": state["bg_idx"],
-                "open_eraser": True,
-            }
-
         preview = get_preview_image(
             closest_indices_img, fg_alpha, state["present"],
             state["mapped"], state["modes"], state["selected"],
@@ -826,16 +810,6 @@ def run_mapping_dashboard(
                 "mapped_color_indices": state["mapped"],
                 "layer_modes": state["modes"],
                 "bg_color_idx": state["bg_idx"],
-                "open_eraser": False,
-            }
-        elif key in (ord('e'), ord('E')):
-            cv2.destroyAllWindows()
-            return {
-                "present_color_indices": state["present"],
-                "mapped_color_indices": state["mapped"],
-                "layer_modes": state["modes"],
-                "bg_color_idx": state["bg_idx"],
-                "open_eraser": True,
             }
         elif key in (27, ord('q'), ord('c')):
             print("Dashboard cancelled by user.")

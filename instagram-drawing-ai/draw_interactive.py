@@ -79,11 +79,40 @@ def main() -> None:
     # ------------------------------------------------------------------
     image_arg = None
     recalibrate = False
+    run_trainer = False
+    train_target = "circle"
+
     for arg in sys.argv[1:]:
         if arg in ("--recalibrate", "-r"):
             recalibrate = True
-        else:
+        elif arg in ("--test-harness", "-t"):
+            run_harness = True
+        elif arg in ("--train", "-tr"):
+            run_trainer = True
+        elif arg in ("--dither", "-d"):
+            quant_method = "dithered"
+        elif arg in ("--cnn", "-c"):
+            quant_method = "ciede2000"
+            os.environ["USE_CNN_STROKES"] = "1"
+        elif arg in ("--legacy", "-l"):
+            quant_method = "rgb"
+        elif arg.startswith("--image="):
+            image_arg = arg.split("=")[1]
+        elif not arg.startswith("-"):
             image_arg = arg
+            train_target = arg
+
+    if run_trainer:
+        from interactive_trainer import run_interactive_trainer
+        run_interactive_trainer(image_arg if image_arg else train_target)
+        return
+
+    if run_harness:
+        from test_harness import run_visual_comparison
+        image_path = _resolve_image_path(image_arg)
+        if image_path:
+            run_visual_comparison(image_path)
+        return
 
     # ------------------------------------------------------------------
     # 1. Connect to device
@@ -163,8 +192,8 @@ def main() -> None:
     fg_bgr = cv2.medianBlur(resized_fg[:, :, :3], 3)
     fg_alpha = resized_fg[:, :, 3]
 
-    print("Quantising colours to Instagram palette...")
-    _quantized_bgr, closest_indices_img = quantize_image(fg_bgr)
+    print(f"Quantising colours to Instagram palette (method: {quant_method})...")
+    _quantized_bgr, closest_indices_img = quantize_image(fg_bgr, method=quant_method)
 
     # ------------------------------------------------------------------
     # 7. Identify active layers (filter noise)
@@ -247,7 +276,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 9.5 Optional eraser pass — clean up unwanted pixels before drawing
     # ------------------------------------------------------------------
-    print("\nOpening Eraser Editor (press ENTER/SPACE when done, ESC to cancel)...")
+    print("\n🖌  Opening Eraser Editor (press ENTER to skip, ESC to cancel drawing)...")
     erased = run_eraser_editor(
         layers_data,
         closest_indices_img,

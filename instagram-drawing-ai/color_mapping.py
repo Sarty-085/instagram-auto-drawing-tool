@@ -160,14 +160,17 @@ def quantize_image(img: np.ndarray, method: str = "ciede2000") -> tuple[np.ndarr
         A BGR image (``np.uint8``, shape ``(H, W, 3)``).
     method:
         Quantization metric: ``'ciede2000'`` (perceptual Delta E), ``'cie76'``,
-        or ``'rgb'`` (Euclidean).
+        ``'dithered'`` (Bayer ordered dithering), or ``'rgb'`` (Euclidean).
 
     Returns
     -------
     tuple[np.ndarray, np.ndarray]
         ``(quantized_bgr, closest_indices)``
     """
-    if method in ("ciede2000", "cie76"):
+    if method == "dithered":
+        from dithering import apply_bayer_dithering
+        return apply_bayer_dithering(img, COLORS_PALETTE)
+    elif method in ("ciede2000", "cie76"):
         from perceptual_color import quantize_perceptual
         quant_bgr, closest_idx, _de = quantize_perceptual(img, COLORS_PALETTE, metric=method)
         return quant_bgr, closest_idx

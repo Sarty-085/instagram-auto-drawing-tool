@@ -169,19 +169,18 @@ def make_contour_safe(
 def get_fill_paths_from_mask(
     mask: np.ndarray,
     step_size: int,
+    brush_radius: int = 0,
 ) -> List[np.ndarray]:
     """Generate zig-zag horizontal scanlines directly from a binary mask.
 
     Unlike the old contour-based approach, this function scans the **actual
     mask pixels** row by row and emits one swipe segment per connected
-    horizontal run of non-zero pixels.  This correctly handles masks with
-    interior holes (e.g. a ring-shaped black outline whose interior pixels
-    belong to a different colour layer): those interior pixels are zero in
-    the mask, so no swipe is emitted for them — the fill cannot bleed into
-    areas that were not originally that colour.
+    horizontal run of non-zero pixels.
 
-    Even-indexed segments run left → right; odd-indexed ones run right →
-    left, producing a zig-zag pattern that minimises pen-lift travel.
+    When *brush_radius* > 0, scanline endpoints are inset inward by
+    *brush_radius* so the physical brush ink footprint stays inside the
+    original shape boundary rather than bleeding outward. Runs narrower than
+    2 * brush_radius are collapsed to a single centered dab point.
 
     Parameters
     ----------
@@ -189,6 +188,8 @@ def get_fill_paths_from_mask(
         Binary single-channel mask (uint8, shape H×W), values 0 or 255.
     step_size : int
         Vertical distance (pixels) between consecutive scanline rows.
+    brush_radius : int, optional
+        Half of the physical brush width in pixels. Used to prevent ink bleeding.
 
     Returns
     -------
@@ -201,7 +202,11 @@ def get_fill_paths_from_mask(
     paths: List[np.ndarray] = []
     line_index = 0
 
-    for row in range(0, h_mask, step_size):
+    # Start after vertical margin of brush_radius // 2 so top edge doesn't bleed out
+    start_row = max(0, brush_radius // 2) if brush_radius > 0 else 0
+    end_row = min(h_mask, h_mask - (brush_radius // 2)) if brush_radius > 0 else h_mask
+
+    for row in range(start_row, end_row, step_size):
         filled = np.where(mask[row] > 0)[0]
         if filled.size < 2:
             continue  # 0 or 1 pixel → nothing drawable
@@ -218,10 +223,25 @@ def get_fill_paths_from_mask(
             if x_right <= x_left:
                 continue  # single-pixel-wide run — skip
 
-            if line_index % 2 == 0:
-                start, end = (x_left, row), (x_right, row)
+            length = x_right - x_left
+            if brush_radius > 0:
+                if length <= 2 * brush_radius:
+                    # Narrower than physical brush: place a single centered dab
+                    mid_x = (x_left + x_right) // 2
+                    start, end = (mid_x, row), (mid_x, row)
+                else:
+                    # Inset endpoints so ink stays strictly within mask boundaries
+                    inset_left = x_left + brush_radius
+                    inset_right = x_right - brush_radius
+                    if line_index % 2 == 0:
+                        start, end = (inset_left, row), (inset_right, row)
+                    else:
+                        start, end = (inset_right, row), (inset_left, row)
             else:
-                start, end = (x_right, row), (x_left, row)
+                if line_index % 2 == 0:
+                    start, end = (x_left, row), (x_right, row)
+                else:
+                    start, end = (x_right, row), (x_left, row)
 
             paths.append(
                 np.array([[[start[0], start[1]]], [[end[0], end[1]]]], dtype=np.int32)
@@ -348,9 +368,9 @@ def select_brush_size(
 ) -> None:
     """Drag the brush-size slider to the position for *size_number*.
 
-    Reads the target Y from ``config['brush_config'][str(size_number)]['y']``
-    and performs a short horizontal swipe on the slider rail at
-    ``config['device']['brush_slider_x']`` to activate the position.
+    The slider rail is at ``config['device']['brush_slider_x']`` (default 86).
+    Performs a vertical swipe along the rail to firmly set the slider handle
+    to the target position.
 
     Parameters
     ----------
@@ -361,11 +381,18 @@ def select_brush_size(
     config : dict
         Full application config.
     """
-    brush_x: int = int(config["device"]["brush_slider_x"])
-    target_y: int = int(config["brush_config"][str(size_number)]["y"])
+    brush_x: int = int(config["device"].get("brush_slider_x", 86))
+    target_y: int = int(config["brush_config"].get(str(size_number), {}).get("y", 1540))
 
-    # A tiny horizontal drag at the target Y to "click" the slider.
-    adb.swipe(brush_x, target_y, brush_x + 15, target_y, 200)
+    if size_number == 1:
+        # Thinnest preset: drag firmly down to the bottom of the slider rail
+        adb.swipe(brush_x, 1300, brush_x, 1545, 450)
+    elif size_number == 5:
+        # Thickest preset: drag firmly up to the top of the slider rail
+        adb.swipe(brush_x, 1200, brush_x, 865, 450)
+    else:
+        adb.swipe(brush_x, 1200, brush_x, target_y, 450)
+    time.sleep(0.3)
 
 
 # -----------------------------------------------------------------------
@@ -463,9 +490,12 @@ def execute_drawing(
         h_mask, w_mask = mask.shape[:2]
 
         if mode == "fill":
-            # --- Scanline fill (mask-direct: respects holes correctly) ------
-            fill_step: int = int(drawing_cfg["fill_step_size"])
-            segments = get_fill_paths_from_mask(mask, fill_step)
+            # --- Scanline fill (mask-direct with brush radius compensation) ---
+            brush_width = int(config.get("brush_config", {}).get("1", {}).get("width", 16))
+            brush_radius = max(2, brush_width // 2)
+            fill_step = max(4, int(brush_width * 0.65))
+
+            segments = get_fill_paths_from_mask(mask, fill_step, brush_radius=brush_radius)
             for seg in segments:
                 pt_start = seg[0][0]
                 pt_end   = seg[1][0]
@@ -474,10 +504,16 @@ def execute_drawing(
                 ex = int(pt_end[0])   + x_phone
                 ey = int(pt_end[1])   + y_phone
 
-                sx, sy, ex, ey = make_swipe_coordinates_safe(sx, sy, ex, ey, safe_x)
-                dur = get_swipe_duration(sx, sy, ex, ey, config)
-                adb.swipe(sx, sy, ex, ey, dur)
-                time.sleep(inter_delay)
+                if sx == ex and sy == ey:
+                    # Single dab / point for features narrower than brush width
+                    if sx >= safe_x:
+                        adb.tap(sx, sy)
+                        time.sleep(inter_delay)
+                else:
+                    sx, sy, ex, ey = make_swipe_coordinates_safe(sx, sy, ex, ey, safe_x)
+                    dur = get_swipe_duration(sx, sy, ex, ey, config)
+                    adb.swipe(sx, sy, ex, ey, dur)
+                    time.sleep(inter_delay)
             # Settle after the full fill so the pen lift is fully registered
             time.sleep(max(0.15, inter_delay * 2))
 

@@ -163,6 +163,67 @@ def make_contour_safe(
 
 
 # -----------------------------------------------------------------------
+# Mask preprocessing and brush bleed compensation
+# -----------------------------------------------------------------------
+
+def compensate_layer_mask(
+    mask: np.ndarray,
+    min_noise_area: int = 35,
+    large_feature_threshold: int = 10000,
+) -> np.ndarray:
+    """Preprocess a layer mask:
+    1. Filter out tiny 1-3 pixel noise islands and stray edge specks (area < min_noise_area).
+    2. Preserve large body/background fills (area > large_feature_threshold) at 100% full thickness
+       to guarantee seamless zero-gap layer boundaries.
+    3. Apply adaptive physical brush-bleed compensation (erosion) to text, letters, dots, and fine
+       facial details so that when the physical ~16px Instagram pen draws them, the physical ink
+       expands back to the exact intended stroke thickness without merging adjacent letters or
+       swallowing inner holes.
+    """
+    if mask is None or not np.any(mask):
+        return mask
+
+    # 1. Filter out noise islands
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    filtered = np.zeros_like(mask)
+    for i in range(1, num_labels):
+        if stats[i, cv2.CC_STAT_AREA] >= min_noise_area:
+            filtered[labels == i] = 255
+
+    if not np.any(filtered):
+        return mask
+
+    # 2. Adaptive thinning on fine details & text
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(filtered)
+    compensated = np.zeros_like(filtered)
+
+    for i in range(1, num_labels):
+        c_mask = (labels == i).astype(np.uint8) * 255
+        area = stats[i, cv2.CC_STAT_AREA]
+
+        # Large body/outline features: retain 100% full coverage (zero gaps)
+        if area > large_feature_threshold:
+            compensated |= c_mask
+            continue
+
+        dt = cv2.distanceTransform(c_mask, cv2.DIST_L2, 3)
+        max_d = np.max(dt)
+
+        # Thin/text features: erode proportionally to prevent pen bloom from fusing characters
+        erode_k = min(5, max(1, int(max_d - 1.5)))
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (erode_k * 2 + 1, erode_k * 2 + 1)
+        )
+        c_eroded = cv2.erode(c_mask, kernel)
+        if np.sum(c_eroded) > 0:
+            compensated |= c_eroded
+        else:
+            compensated |= c_mask
+
+    return compensated
+
+
+# -----------------------------------------------------------------------
 # Interior fill via horizontal scanlines
 # -----------------------------------------------------------------------
 
@@ -450,7 +511,10 @@ def execute_drawing(
     for layer_num, layer in enumerate(layers_data, start=1):
         palette_idx: int = layer["mapped_idx"]
         mode: str = layer["mode"]
-        mask: np.ndarray = layer["mask"]
+        raw_mask: np.ndarray = layer["mask"]
+        mask = compensate_layer_mask(raw_mask)
+        if not np.any(mask):
+            continue
 
         _bgr, _page, _cx, color_name = COLORS_PALETTE[palette_idx]
         print(

@@ -263,15 +263,33 @@ def clean_antialiasing_halos(
     if not np.any(halo_mask):
         return cleaned
 
-    gen_colors = np.array([COLORS_PALETTE[i][0] for i in genuine_layers], dtype=np.float64)
-    halo_pixels = fg_bgr[halo_mask].astype(np.float64)
-    dists = np.sum((halo_pixels[:, None, :] - gen_colors[None, :, :]) ** 2, axis=2)
-    best_gen_idx = np.argmin(dists, axis=1)
-    cleaned[halo_mask] = np.array(genuine_layers)[best_gen_idx]
+    halo_count = int(np.sum(halo_mask))
 
-    halo_count = np.sum(halo_mask)
+    # Spatially propagate adjacent genuine layers into halo boundary pixels.
+    # This ensures edge anti-aliasing (e.g. between Black and White) snaps to
+    # the surrounding parent layers rather than jumping to distant hues (e.g. Pink).
+    remaining_halo = halo_mask.copy()
+    for _ in range(6):
+        if not np.any(remaining_halo):
+            break
+        for gl in genuine_layers:
+            gl_mask = (cleaned == gl) & fg_mask
+            gl_dil = cv2.dilate(gl_mask.astype(np.uint8), kernel).astype(bool)
+            can_fill = gl_dil & remaining_halo
+            cleaned[can_fill] = gl
+            remaining_halo[can_fill] = False
+
+    # For any isolated halo pixels that do not touch a genuine layer, fallback to colour distance
+    if np.any(remaining_halo):
+        gen_colors = np.array([COLORS_PALETTE[i][0] for i in genuine_layers], dtype=np.float64)
+        halo_pixels = fg_bgr[remaining_halo].astype(np.float64)
+        dists = np.sum((halo_pixels[:, None, :] - gen_colors[None, :, :]) ** 2, axis=2)
+        best_gen_idx = np.argmin(dists, axis=1)
+        cleaned[remaining_halo] = np.array(genuine_layers)[best_gen_idx]
+
     if halo_count > 0:
         print(f"[color_mapping] Merged {halo_count} anti-aliased halo pixels into dominant layers.")
 
     return cleaned
+
 

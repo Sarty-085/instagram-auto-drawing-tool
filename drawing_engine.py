@@ -484,17 +484,43 @@ def execute_drawing(
 
         else:
             # --- Outline tracing -----------------------------------------
-            epsilon_factor: float = float(drawing_cfg["contour_epsilon"])
+            epsilon_factor: float = float(drawing_cfg.get("contour_epsilon", 0.002))
             contours, _ = cv2.findContours(
                 mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE,
             )
             for cnt in contours:
+                area = cv2.contourArea(cnt)
                 perimeter = cv2.arcLength(cnt, closed=True)
+                if area < 10 or perimeter < 10:
+                    continue
+
+                # Small features (eyes, dots, accents) -> tap once at centroid!
+                if perimeter < 35 or area < 60:
+                    M = cv2.moments(cnt)
+                    if M["m00"] > 0:
+                        cx = int(M["m10"] / M["m00"]) + x_phone
+                        cy = int(M["m01"] / M["m00"]) + y_phone
+                        if cx >= safe_x:
+                            adb.tap(cx, cy)
+                            time.sleep(inter_delay)
+                    continue
+
                 approx = cv2.approxPolyDP(
-                    cnt, epsilon_factor * perimeter, closed=True,
+                    cnt, max(2.5, epsilon_factor * perimeter), closed=True,
                 )
                 approx = make_contour_safe(approx, x_phone, safe_x)
-                points = approx.reshape(-1, 2)
+                raw_points = approx.reshape(-1, 2)
+                if len(raw_points) < 2:
+                    continue
+
+                # Filter points so distance between consecutive vertices >= 16px.
+                # Micro-segments (< 10-15px) get converted to static tap dots by Android's touch slop.
+                points = [raw_points[0]]
+                for p in raw_points[1:]:
+                    if np.hypot(p[0] - points[-1][0], p[1] - points[-1][1]) >= 16:
+                        points.append(p)
+                if len(points) < 2:
+                    continue
 
                 for i in range(len(points)):
                     pt1 = points[i]

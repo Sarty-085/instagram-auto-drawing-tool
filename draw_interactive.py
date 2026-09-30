@@ -25,7 +25,13 @@ import numpy as np
 
 from adb_utils import ADBConnection
 from calibration import DeviceCalibration
-from color_mapping import COLORS_PALETTE, prepare_source_image, quantize_image, extend_palette_from_config
+from color_mapping import (
+    COLORS_PALETTE,
+    prepare_source_image,
+    quantize_image,
+    extend_palette_from_config,
+    clean_antialiasing_halos,
+)
 from config import load_config, get_config_path
 from drawing_engine import execute_drawing
 from gui import overlay_image_bgra, run_overlay_editor, run_mapping_dashboard, run_eraser_editor
@@ -166,6 +172,9 @@ def main() -> None:
     print("Quantising colours to Instagram palette...")
     _quantized_bgr, closest_indices_img = quantize_image(fg_bgr)
 
+    # Clean anti-aliasing edge halos (eliminate spurious greys / outline transitions)
+    closest_indices_img = clean_antialiasing_halos(closest_indices_img, fg_bgr, fg_alpha)
+
     # ------------------------------------------------------------------
     # 7. Identify active layers (filter noise)
     # ------------------------------------------------------------------
@@ -182,10 +191,10 @@ def main() -> None:
         print("Error: No visible layers detected in the foreground.")
         return
 
-    # Default layer modes
-    layer_modes = {}
-    for idx, cnt in sorted_pairs:
-        layer_modes[int(idx)] = "fill" if cnt > AUTO_FILL_THRESHOLD else "outline"
+    # Default layer modes: default all layers to "fill"
+    # Text and line art must be filled with scanlines so letters stay readable
+    # without blowing up into blobs or producing disconnected dots.
+    layer_modes = {int(idx): "fill" for idx in present_indices}
 
     # Re-order layers lightest → darkest for correct painting order.
     # In cartoon art: light fills first (white pillow, coloured body),

@@ -222,3 +222,56 @@ def extend_palette_from_config(config: dict) -> None:
         )
     print(f"Dynamic palette extended with {len(colors)} custom spectrum colours.")
 
+
+def clean_antialiasing_halos(
+    closest_indices: np.ndarray,
+    fg_bgr: np.ndarray,
+    fg_alpha: np.ndarray,
+    min_core_pixels: int = 0,
+) -> np.ndarray:
+    """Detect and eliminate anti-aliasing edge halos (e.g. spurious greys).
+
+    In digital artwork and doodles, outlines have 1-2 pixel transition
+    gradients (anti-aliasing) that quantize to multiple shades of grey,
+    dark grey, or intermediate hues. These halos have virtually no solid
+    interior core and should not count as separate drawing layers.
+
+    This function identifies genuine layers whose masks retain >= min_core_pixels
+    after a 1-pixel morphological erosion, and snaps all halo pixels to the
+    nearest genuine layer by colour distance.
+    """
+    kernel = np.ones((3, 3), np.uint8)
+    fg_mask = fg_alpha > 0
+    total_fg = int(np.sum(fg_mask))
+    if min_core_pixels <= 0:
+        min_core_pixels = max(80, int(total_fg * 0.003))
+
+    unique_indices = np.unique(closest_indices[fg_mask])
+
+    genuine_layers = []
+    for idx in unique_indices:
+        mask = ((closest_indices == idx) & fg_mask).astype(np.uint8)
+        eroded = cv2.erode(mask, kernel)
+        if np.sum(eroded) >= min_core_pixels:
+            genuine_layers.append(int(idx))
+
+    if not genuine_layers:
+        return closest_indices
+
+    cleaned = closest_indices.copy()
+    halo_mask = ~np.isin(closest_indices, genuine_layers) & fg_mask
+    if not np.any(halo_mask):
+        return cleaned
+
+    gen_colors = np.array([COLORS_PALETTE[i][0] for i in genuine_layers], dtype=np.float64)
+    halo_pixels = fg_bgr[halo_mask].astype(np.float64)
+    dists = np.sum((halo_pixels[:, None, :] - gen_colors[None, :, :]) ** 2, axis=2)
+    best_gen_idx = np.argmin(dists, axis=1)
+    cleaned[halo_mask] = np.array(genuine_layers)[best_gen_idx]
+
+    halo_count = np.sum(halo_mask)
+    if halo_count > 0:
+        print(f"[color_mapping] Merged {halo_count} anti-aliased halo pixels into dominant layers.")
+
+    return cleaned
+

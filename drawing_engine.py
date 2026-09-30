@@ -169,18 +169,13 @@ def make_contour_safe(
 def get_fill_paths_from_mask(
     mask: np.ndarray,
     step_size: int,
-    brush_radius: int = 0,
 ) -> List[np.ndarray]:
     """Generate zig-zag horizontal scanlines directly from a binary mask.
 
-    Unlike the old contour-based approach, this function scans the **actual
-    mask pixels** row by row and emits one swipe segment per connected
-    horizontal run of non-zero pixels.
-
-    When *brush_radius* > 0, scanline endpoints are inset inward by
-    *brush_radius* so the physical brush ink footprint stays inside the
-    original shape boundary rather than bleeding outward. Runs narrower than
-    2 * brush_radius are collapsed to a single centered dab point.
+    Scans the actual mask pixels row by row and emits one swipe segment per
+    connected horizontal run of non-zero pixels. Even-indexed segments run
+    left → right; odd-indexed ones run right → left, producing a smooth
+    continuous zig-zag fill with zero gaps between layers.
 
     Parameters
     ----------
@@ -188,8 +183,6 @@ def get_fill_paths_from_mask(
         Binary single-channel mask (uint8, shape H×W), values 0 or 255.
     step_size : int
         Vertical distance (pixels) between consecutive scanline rows.
-    brush_radius : int, optional
-        Half of the physical brush width in pixels. Used to prevent ink bleeding.
 
     Returns
     -------
@@ -202,11 +195,7 @@ def get_fill_paths_from_mask(
     paths: List[np.ndarray] = []
     line_index = 0
 
-    # Start after vertical margin of brush_radius // 2 so top edge doesn't bleed out
-    start_row = max(0, brush_radius // 2) if brush_radius > 0 else 0
-    end_row = min(h_mask, h_mask - (brush_radius // 2)) if brush_radius > 0 else h_mask
-
-    for row in range(start_row, end_row, step_size):
+    for row in range(0, h_mask, step_size):
         filled = np.where(mask[row] > 0)[0]
         if filled.size < 2:
             continue  # 0 or 1 pixel → nothing drawable
@@ -223,25 +212,10 @@ def get_fill_paths_from_mask(
             if x_right <= x_left:
                 continue  # single-pixel-wide run — skip
 
-            length = x_right - x_left
-            if brush_radius > 0:
-                if length <= 2 * brush_radius:
-                    # Narrower than physical brush: place a single centered dab
-                    mid_x = (x_left + x_right) // 2
-                    start, end = (mid_x, row), (mid_x, row)
-                else:
-                    # Inset endpoints so ink stays strictly within mask boundaries
-                    inset_left = x_left + brush_radius
-                    inset_right = x_right - brush_radius
-                    if line_index % 2 == 0:
-                        start, end = (inset_left, row), (inset_right, row)
-                    else:
-                        start, end = (inset_right, row), (inset_left, row)
+            if line_index % 2 == 0:
+                start, end = (x_left, row), (x_right, row)
             else:
-                if line_index % 2 == 0:
-                    start, end = (x_left, row), (x_right, row)
-                else:
-                    start, end = (x_right, row), (x_left, row)
+                start, end = (x_right, row), (x_left, row)
 
             paths.append(
                 np.array([[[start[0], start[1]]], [[end[0], end[1]]]], dtype=np.int32)
@@ -490,12 +464,9 @@ def execute_drawing(
         h_mask, w_mask = mask.shape[:2]
 
         if mode == "fill":
-            # --- Scanline fill (mask-direct with brush radius compensation) ---
-            brush_width = int(config.get("brush_config", {}).get("1", {}).get("width", 16))
-            brush_radius = max(2, brush_width // 2)
-            fill_step = max(4, int(brush_width * 0.65))
-
-            segments = get_fill_paths_from_mask(mask, fill_step, brush_radius=brush_radius)
+            # --- Scanline fill (dense, smooth zig-zag with zero gaps) ---
+            fill_step: int = int(drawing_cfg.get("fill_step_size", 5))
+            segments = get_fill_paths_from_mask(mask, fill_step)
             for seg in segments:
                 pt_start = seg[0][0]
                 pt_end   = seg[1][0]
@@ -504,16 +475,10 @@ def execute_drawing(
                 ex = int(pt_end[0])   + x_phone
                 ey = int(pt_end[1])   + y_phone
 
-                if sx == ex and sy == ey:
-                    # Single dab / point for features narrower than brush width
-                    if sx >= safe_x:
-                        adb.tap(sx, sy)
-                        time.sleep(inter_delay)
-                else:
-                    sx, sy, ex, ey = make_swipe_coordinates_safe(sx, sy, ex, ey, safe_x)
-                    dur = get_swipe_duration(sx, sy, ex, ey, config)
-                    adb.swipe(sx, sy, ex, ey, dur)
-                    time.sleep(inter_delay)
+                sx, sy, ex, ey = make_swipe_coordinates_safe(sx, sy, ex, ey, safe_x)
+                dur = get_swipe_duration(sx, sy, ex, ey, config)
+                adb.swipe(sx, sy, ex, ey, dur)
+                time.sleep(inter_delay)
             # Settle after the full fill so the pen lift is fully registered
             time.sleep(max(0.15, inter_delay * 2))
 

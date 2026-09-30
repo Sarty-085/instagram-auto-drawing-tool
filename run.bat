@@ -5,6 +5,9 @@ echo   Starting Instagram Auto-Drawing Tool Setup...
 echo ===================================================
 echo.
 
+:: Ensure working directory is the script directory
+cd /d "%~dp0"
+
 :: Check if Python is installed
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
@@ -26,13 +29,17 @@ echo.
 
 :: Check if adb is connected
 echo [2/3] Checking ADB connection...
-adb devices > temp_devices.txt
-findstr /i "device" temp_devices.txt >nul
+if exist "%~dp0adb.exe" (
+    "%~dp0adb.exe" devices > temp_devices.txt
+) else (
+    adb devices > temp_devices.txt
+)
+findstr /v /i "attached" temp_devices.txt | findstr /i "device" >nul
 if %errorlevel% neq 0 (
     echo [WARNING] No Android device detected.
     echo Please connect your phone via USB with USB Debugging enabled.
 )
-del temp_devices.txt
+if exist temp_devices.txt del temp_devices.txt
 echo.
 
 :: Prompt for image path

@@ -42,10 +42,17 @@ if %errorlevel% neq 0 (
 if exist temp_devices.txt del temp_devices.txt
 echo.
 
+:: Check if image was passed as argument or dragged onto bat
+if not "%~1"=="" (
+    set "img_path=%~1"
+    goto :check_image
+)
+
 :: Prompt for image path
 echo [3/3] Ready to run!
 set /p img_path="Enter the path to your image (or drag and drop it here): "
 
+:check_image
 :: Remove quotes if drag-and-dropped
 set img_path=%img_path:"=%
 

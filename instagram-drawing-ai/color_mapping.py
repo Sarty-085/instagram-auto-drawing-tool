@@ -141,6 +141,23 @@ def prepare_source_image(img_path: str) -> np.ndarray | None:
     channels = img.shape[2] if img.ndim == 3 else 1
 
     if channels == 4:
+        # Auto-heal enclosed transparent holes (e.g. white cartoon bodies that were
+        # accidentally made transparent by external background removal tools).
+        h, w = img.shape[:2]
+        solid = (img[:, :, 3] > 50).astype(np.uint8)
+        bg = solid.copy()
+        mask = np.zeros((h + 2, w + 2), dtype=np.uint8)
+        # Flood fill from all four corners to find true external background
+        for corner in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]:
+            if bg[corner[1], corner[0]] == 0:
+                cv2.floodFill(bg, mask, corner, 255)
+
+        enclosed_holes = (bg == 0) & (img[:, :, 3] < 50)
+        hole_count = int(np.sum(enclosed_holes))
+        if hole_count > 100:
+            print(f"[color_mapping] Restored {hole_count} enclosed transparent pixels to white fill.")
+            img[enclosed_holes] = [255, 255, 255, 255]
+
         return img
 
     # 3-channel BGR image → create alpha from background detection.
